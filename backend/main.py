@@ -8,8 +8,12 @@ Run with:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from api.routes import router
+from api.intelligence import router as intelligence_router
 
 # ── App ──────────────────────────────────────────────────────────────────────
 
@@ -38,6 +42,7 @@ app.add_middleware(
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 app.include_router(router, prefix="/api")
+app.include_router(intelligence_router, prefix="/api/intelligence", tags=["Architecture Intelligence"])
 
 
 @app.get("/")

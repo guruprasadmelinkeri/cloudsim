@@ -84,3 +84,74 @@ This is a simplified mathematical simulation, not a real distributed system:
 - **Failover Demo**: Select "Load Balanced" architecture + "Server Failure" scenario. Watch Server 2 turn red (offline) at 10s, with requests automatically routed to remaining servers, and recover at 20s.
 
 *(Add screenshots here)*
+
+## Architecture Intelligence Center
+
+The separate `/intelligence` section adds a custom architecture designer, optional Gemini architecture advisor, illustrative component cost estimator, NetworkX reliability analysis, optimizer, custom-design comparison, PDF reports, and a separate graph-driven SimPy simulation dashboard at `/intelligence/simulation`. The custom simulation engine models graph traversal, resources/queues, failures and recovery, caching, and autoscaling without changing the four original simulation implementations. Cost figures are illustrative and simulation results are local model outputs, not provider bills or live infrastructure measurements. See [docs/FEATURE_GUIDE.md](docs/FEATURE_GUIDE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/GEMINI_SETUP.md](docs/GEMINI_SETUP.md).
+
+## How to Run the Project
+
+### Prerequisites
+
+- Python 3.10 or newer and `pip`
+- Node.js 20 or newer and npm
+- Gemini API credentials are optional; non-AI features work without them.
+
+### Repository setup
+
+Clone/download the repository and open a terminal at its root (`CloudArchSim`). Do not run the commands from a guessed subfolder: both exact project directories are `backend/` and `frontend/`.
+
+### Backend environment and dependencies
+
+```bash
+cd backend
+python -m venv venv
+# Linux/macOS:
+source venv/bin/activate
+# Windows PowerShell instead: .\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+Optionally create `backend/.env` for Gemini:
+
+```dotenv
+GEMINI_API_KEY=your-secret-key
+# Optional: leave empty for Gemini 3 Flash model discovery, or pin a verified free-tier model.
+GEMINI_MODEL=
+```
+
+Automatic discovery prefers available Gemini 3 Flash text models, with Gemini 3.0 IDs first when present. The model list does not report free-tier eligibility, so verify in AI Studio that your selected model is free for your project. Follow [Gemini setup](docs/GEMINI_SETUP.md). Leave this file absent for non-AI functionality.
+
+### Start the backend
+
+From the `backend/` directory with the environment activated:
+
+```bash
+uvicorn main:app --reload
+```
+
+Backend: `http://localhost:8000`; API docs: `http://localhost:8000/docs`; intelligence health: `http://localhost:8000/api/intelligence/health`.
+
+### Install and start the frontend
+
+Open a second terminal at the repository root:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend: `http://localhost:3000`; Architecture Intelligence Center: `http://localhost:3000/intelligence`; custom simulation dashboard: `http://localhost:3000/intelligence/simulation`.
+
+### Tests and checks
+
+With backend dependencies installed, from `backend/` run `python -m unittest discover -s tests`. Gemini tests use mocks and do not consume API quota. To check the Next.js application, from `frontend/` run `npm run lint` and `npm run build`.
+
+### Common troubleshooting
+
+- `python` is not found: install Python and use `python3` on Linux distributions that do not provide the `python` alias.
+- Frontend cannot reach the API: start FastAPI and confirm port 8000; the frontend API client targets `http://localhost:8000`.
+- Gemini advisor unavailable: check `backend/.env`, restart the backend, verify `GEMINI_MODEL` is enabled for the free tier, and check AI Studio usage/quota. All other intelligence features work without Gemini.
+- Port already in use: stop the other local process or use the relevant framework’s port option, then adjust the frontend API URL if moving the backend.
+- npm dependency trouble: use Node.js 20+ and rerun `npm install` from `frontend/`.
