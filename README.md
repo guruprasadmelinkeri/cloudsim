@@ -87,7 +87,7 @@ This is a simplified mathematical simulation, not a real distributed system:
 
 ## Architecture Intelligence Center
 
-The separate `/intelligence` section adds a custom architecture designer, optional Gemini architecture advisor, illustrative component cost estimator, NetworkX reliability analysis, optimizer, custom-design comparison, PDF reports, and a separate graph-driven SimPy simulation dashboard at `/intelligence/simulation`. The custom simulation engine models graph traversal, resources/queues, failures and recovery, caching, and autoscaling without changing the four original simulation implementations. Cost figures are illustrative and simulation results are local model outputs, not provider bills or live infrastructure measurements. See [docs/FEATURE_GUIDE.md](docs/FEATURE_GUIDE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/GEMINI_SETUP.md](docs/GEMINI_SETUP.md).
+The separate `/intelligence` section adds a custom architecture designer, optional Gemini architecture advisor, illustrative component cost estimator, NetworkX risk analysis, optimizer, PDF reports, and a graph-driven SimPy simulation dashboard at `/intelligence/simulation` for comparing saved designs under matching conditions. The custom simulation engine models graph traversal, resources/queues, failures and recovery, caching, and autoscaling without changing the four original simulation implementations. Cost figures are illustrative and simulation results are local model outputs, not provider bills or live infrastructure measurements. See [docs/FEATURE_GUIDE.md](docs/FEATURE_GUIDE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/GEMINI_SETUP.md](docs/GEMINI_SETUP.md).
 
 ## How to Run the Project
 

@@ -6,6 +6,55 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 PRICES = {"client":{"hourly":0},"cdn":{"hourly":0.02},"load_balancer":{"hourly":0.025},"application_server":{"hourly":0.05},"auto_scaling_group":{"hourly":0.05},"database":{"hourly":0.12},"cache":{"hourly":0.04},"api_gateway":{"hourly":0.01},"queue":{"hourly":0.02},"storage":{"hourly":0.023},"data_transfer":{"per_gb_month":0.09}}
+SIMULATION_LATENCY_MS = {"cdn":2,"load_balancer":1,"application_server":25,"auto_scaling_group":2,"database":18,"cache":1,"api_gateway":4,"queue":3,"storage":25}
+
+def ensure_traffic_generator(architecture):
+    """Guarantee a client source and connect it to otherwise unrooted services."""
+    components=architecture["components"]
+    raw_connections=architecture.setdefault("connections",[])
+    connections=[]; seen=set()
+    for edge in raw_connections:
+        key=(edge["source"],edge["target"])
+        if key not in seen: seen.add(key); connections.append(edge)
+    architecture["connections"]=connections
+    clients=[item for item in components if item.get("type")=="client"]
+    if not clients:
+        ids={item["id"] for item in components}
+        ident="traffic-generator"
+        while ident in ids: ident+="-1"
+        clients=[{"id":ident,"type":"client","name":"Traffic Generator","config":{}}]
+        components.append(clients[0])
+    graph=nx.DiGraph(); graph.add_nodes_from(item["id"] for item in components)
+    graph.add_edges_from((edge["source"],edge["target"]) for edge in connections)
+    if not nx.is_directed_acyclic_graph(graph):
+        raise ValueError("Generated architecture has cyclic request paths; a directed acyclic request graph is required.")
+    roots=[node for node in graph if graph.in_degree(node)==0 and not any(c["id"]==node for c in clients)]
+    source=clients[0]["id"]
+    for root in roots:
+        if root!=source and not graph.has_edge(source,root):
+            connections.append({"source":source,"target":root})
+            graph.add_edge(source,root)
+    return architecture
+
+def populate_simulation_defaults(architecture):
+    """Replace omitted or zero-valued service settings with usable local defaults."""
+    counts={"application_server":2,"auto_scaling_group":2}
+    for component in architecture["components"]:
+        if component.get("type")=="client":
+            component.setdefault("config",{})
+            continue
+        config=component.setdefault("config",{})
+        defaults={"processing_latency_ms":SIMULATION_LATENCY_MS.get(component["type"],10),"processing_capacity_rps":100,"network_latency_ms":5,"max_concurrent":20 if component["type"]=="database" else 10,"max_queue_length":1000,"failure_probability":0,"recovery_time":5,"count":1,"instances":1,"max_instances":1}
+        if component["type"] in counts:
+            count=counts[component["type"]]; defaults.update({"count":count,"instances":count,"max_instances":4,"min_instances":1})
+        if component["type"]=="auto_scaling_group": defaults.update({"min_instances":2,"scale_up_threshold":.8,"scale_up_delay":2})
+        if component["type"]=="cache": defaults["hit_rate"]=.7
+        if component["type"]=="cdn": defaults["hit_rate"]=.8
+        for key,value in defaults.items():
+            current=config.get(key)
+            if current is None or (key in {"processing_latency_ms","processing_capacity_rps","network_latency_ms","max_concurrent","recovery_time","count","instances","max_instances","max_queue_length","min_instances","scale_up_threshold","scale_up_delay"} and (not isinstance(current,(int,float)) or current<=0)):
+                config[key]=value
+    return architecture
 
 def _available_text_models(client):
     """Discover models exposed to this API key and prefer Gemini 3 text models."""
@@ -78,16 +127,20 @@ def analyze_graph(design):
     single=[{"id":i,"name":g.nodes[i]["name"],"type":t} for t,ids in types.items() if t in {"load_balancer","database","cache","queue","api_gateway"} and len(ids)==1 for i in ids]
     critical=sorted(g,key=lambda n:g.in_degree(n)+g.out_degree(n),reverse=True)[:3]
     disconnected=[sorted(x) for x in components if not x.intersection(reachable)]
+    choke_points=[]
+    undirected=g.to_undirected()
+    for node in nx.articulation_points(undirected) if len(undirected)>1 else []:
+        choke_points.append({"id":node,"name":g.nodes[node]["name"],"reason":"Removing this component disconnects parts of the architecture graph."})
     risks=[]
     for i in critical:
         if g.nodes[i]["type"] == "client": continue
         down=nx.descendants(g,i)
         if len(down)>=2: risks.append({"component":i,"impact":"failure may interrupt downstream dependencies","affected":sorted(down)})
-    score=max(0,100-18*len(single)-12*len(disconnected)-min(30,len(risks)*8)); rec=[]
+    rec=[]
     if single: rec.append("Add redundancy for critical single-instance components: "+", ".join(x["name"] for x in single))
     if disconnected: rec.append("Connect or remove components outside client request paths.")
     if len(types.get("application_server",[]))<2: rec.append("Use multiple application instances behind a load balancer for horizontal scale and failover.")
-    return {"single_points_of_failure":single,"critical_components":critical,"disconnected_components":disconnected,"cascading_failure_risks":risks,"reliability_score":score,"recommendations":rec,"method":"NetworkX topology heuristics; not a SimPy simulation or production availability prediction."}
+    return {"single_points_of_failure":single,"critical_components":critical,"choke_points":choke_points,"disconnected_components":disconnected,"cascading_failure_risks":risks,"recommendations":rec,"method":"NetworkX graph-structure findings; not a SimPy simulation or production availability prediction."}
 
 def optimize(d):
     findings=[]; types=[c.type for c in d.components]
@@ -96,26 +149,38 @@ def optimize(d):
     if "load_balancer" not in types and types.count("application_server")+types.count("auto_scaling_group")>1: findings.append({"id":"add_load_balancer","title":"Add a load balancer","reason":"Distribute traffic across application instances.","tradeoff":"Adds another dependency to make redundant."})
     return findings
 
-def assess_architecture(d):
-    failure=analyze_graph(d); types=[c.type for c in d.components]; costs=estimate_cost(d)
-    performance=max(0,100-(18 if "database" in types and "cache" not in types else 0)-(12 if "cdn" not in types else 0))
-    app_count=types.count("application_server")+types.count("auto_scaling_group")
-    scale=100 if "load_balancer" in types and app_count>=2 else 65 if app_count>=2 else 40
-    complexity=max(0,100-4*len(d.components)-2*len(d.connections))
-    cost_score=max(0,min(100,100-int(costs["monthly"]/10)))
-    return {"performance":{"score":performance,"findings":["Cache placement can reduce repeated database reads." if "database" in types and "cache" not in types else "Cache is present in the component inventory.","CDN presence reduces origin load for cacheable content." if "cdn" in types else "No CDN component is present."]},"scalability":{"score":scale,"findings":["Horizontal app capacity and a load balancer provide a basic scale path." if scale==100 else "Add application replicas and a load balancer for a clearer horizontal scale path."]},"reliability":{"score":failure["reliability_score"],"findings":failure["recommendations"]},"cost_efficiency":{"score":cost_score,"monthly_estimate":costs["monthly"],"findings":["Illustrative catalogue estimate; size, region and traffic assumptions change actual spend."]},"complexity":{"score":complexity,"component_count":len(d.components),"connection_count":len(d.connections),"findings":["Complexity proxy is based on component and connection counts."]},"method":"Deterministic design heuristics, not a production benchmark or SimPy result."}
-
 def recommend(requirements):
     if not os.getenv("GEMINI_API_KEY"): raise RuntimeError("Gemini is not configured. Set GEMINI_API_KEY in backend/.env; deterministic features remain available.")
     try:
         from google import genai
         from google.genai import types
         client=genai.Client(api_key=os.getenv("GEMINI_API_KEY"),http_options=types.HttpOptions(timeout=30000))
-        schema={"type":"OBJECT","properties":{"name":{"type":"STRING"},"components":{"type":"ARRAY","items":{"type":"OBJECT","properties":{"id":{"type":"STRING"},"type":{"type":"STRING"},"name":{"type":"STRING"},"config":{"type":"OBJECT"}},"required":["id","type","name","config"]}},"connections":{"type":"ARRAY","items":{"type":"OBJECT","properties":{"source":{"type":"STRING"},"target":{"type":"STRING"}},"required":["source","target"]}},"explanation":{"type":"STRING"},"tradeoffs":{"type":"ARRAY","items":{"type":"STRING"}},"bottlenecks":{"type":"ARRAY","items":{"type":"STRING"}},"scalability":{"type":"ARRAY","items":{"type":"STRING"}},"assumptions":{"type":"ARRAY","items":{"type":"STRING"}}},"required":["name","components","connections","explanation","tradeoffs","bottlenecks","scalability","assumptions"]}
-        response=_generate_with_available_model(client,"Design a cloud architecture from these requirements. Use component types client, cdn, load_balancer, application_server, auto_scaling_group, database, cache, api_gateway, queue, storage. Return schema JSON. Requirements: "+requirements,types.GenerateContentConfig(response_mime_type="application/json",response_schema=schema,temperature=.2))
-        data=json.loads(response.text); ids={c["id"] for c in data["components"]}; allowed=set(PRICES)-{"data_transfer"}
-        if any(c["type"] not in allowed for c in data["components"]): raise ValueError("Unsupported component type")
-        if any(e["source"] not in ids or e["target"] not in ids for e in data["connections"]): raise ValueError("Invalid connection")
+        component={"type":"OBJECT","properties":{"id":{"type":"STRING"},"type":{"type":"STRING"},"name":{"type":"STRING"},"config":{"type":"OBJECT"}},"required":["id","type","name","config"]}
+        connection={"type":"OBJECT","properties":{"source":{"type":"STRING"},"target":{"type":"STRING"}},"required":["source","target"]}
+        strings={"type":"ARRAY","items":{"type":"STRING"}}
+        architecture={"type":"OBJECT","properties":{"name":{"type":"STRING"},"components":{"type":"ARRAY","items":component},"connections":{"type":"ARRAY","items":connection},"explanation":{"type":"STRING"},"tradeoffs":strings,"choke_points":strings,"project_specific_risks":strings,"mitigations":strings,"scalability":strings,"assumptions":strings},"required":["name","components","connections","explanation","tradeoffs","choke_points","project_specific_risks","mitigations","scalability","assumptions"]}
+        schema={"type":"OBJECT","properties":{"baseline":architecture,"mitigated":architecture,"comparison_summary":{"type":"STRING"}},"required":["baseline","mitigated","comparison_summary"]}
+        prompt=("Act as a cloud architecture expert. From the product requirements, return TWO complete, comparable architecture designs. "
+        "Both architectures MUST include exactly one component with type=client named Client or Traffic Generator, connected as the request-graph source. "
+        "baseline is a plausible lower-cost/simple design that leaves its identified choke points and project-specific risks unmitigated; do not make it invalid or intentionally nonfunctional. "
+        "mitigated is a production-minded alternative that addresses each identified baseline choke point and risk using components/configurations and explains trade-offs. "
+        "Base risks only on evidence in the product description; label uncertain items as assumptions and never claim an unobserved error is confirmed. "
+        "For each design return component IDs/types/names/config and real directed connections. Name the affected component IDs/names in each choke point and risk; map every mitigation to the risk or choke point it addresses and identify the concrete architecture/config change. "
+        "Also return explanation, tradeoffs, choke_points, project_specific_risks, mitigations, scalability, assumptions; use empty arrays when the evidence does not support a finding. "
+        "Use only component types client, cdn, load_balancer, application_server, auto_scaling_group, database, cache, api_gateway, queue, storage. "
+        "Give every non-client component positive processing_latency_ms, processing_capacity_rps, network_latency_ms and max_concurrent simulation config values; use realistic nonzero service latencies rather than zero placeholders. Include instances/count on compute pools and cache/CDN hit_rate where applicable. "
+        "Use unique component IDs, connect every required component into the client request path, use only valid unique directed connections, and ensure the graph is acyclic with at least one reachable terminal service. "
+        "Make the two designs meaningfully different and preserve the same product requirements. Requirements: "+requirements)
+        response=_generate_with_available_model(client,prompt,types.GenerateContentConfig(response_mime_type="application/json",response_schema=schema,temperature=.2))
+        data=json.loads(response.text)
+        allowed=set(PRICES)-{"data_transfer"}
+        for option in (data["baseline"],data["mitigated"]):
+            ensure_traffic_generator(option)
+            populate_simulation_defaults(option)
+            ids={c["id"] for c in option["components"]}
+            if any(c["type"] not in allowed for c in option["components"]): raise ValueError("Unsupported component type")
+            if any(e["source"] not in ids or e["target"] not in ids for e in option["connections"]): raise ValueError("Invalid connection")
+            if len(ids)!=len(option["components"]): raise ValueError("Component IDs must be unique")
         return data
     except Exception as e:
         detail=str(e).lower()
@@ -133,7 +198,7 @@ def explain_comparison(comparisons):
         from google import genai
         from google.genai import types
         client=genai.Client(api_key=key,http_options=types.HttpOptions(timeout=30000))
-        response=_generate_with_available_model(client,"Compare these custom architectures using their supplied cost, graph reliability, scale and complexity heuristics. Explain the main trade-offs and do not call estimates actual bills or reliability scores measured availability. Data: "+json.dumps(comparisons),types.GenerateContentConfig(temperature=.2,max_output_tokens=700))
+        response=_generate_with_available_model(client,"Compare these custom architectures using only the supplied component inventories, concrete graph-risk findings and illustrative costs. Explain trade-offs without inventing metrics or describing cost estimates as actual bills. Data: "+json.dumps(comparisons),types.GenerateContentConfig(temperature=.2,max_output_tokens=700))
         return response.text or "Gemini returned no comparison explanation."
     except Exception as e:
         if "429" in str(e) or "resource_exhausted" in str(e).lower(): raise RuntimeError("Gemini free-tier quota or rate limit reached.") from e
@@ -158,7 +223,7 @@ def explain_simulation(design, config, result):
         else: message=f"Gemini analysis failed ({type(e).__name__}); the numerical simulation results remain available."
         raise RuntimeError(message) from e
 
-def pdf_report(d,failure,cost,suggestions=None,ai_assessment=None,assessment=None):
+def pdf_report(d,failure,cost,suggestions=None,ai_assessment=None):
     out=BytesIO(); p=canvas.Canvas(out,pagesize=letter); w,h=letter; y=h-48
     def line(s,indent=0):
         nonlocal y
@@ -182,15 +247,16 @@ def pdf_report(d,failure,cost,suggestions=None,ai_assessment=None,assessment=Non
     for e in d.connections: line(f"{e.source} -> {e.target}",10)
     line(f"Cost estimates USD: hourly ${cost['hourly']} | daily ${cost['daily']} | monthly ${cost['monthly']}")
     for b in cost["breakdown"]: line(f"{b['name']}: ${b['monthly']}/month",10)
-    line(f"Reliability heuristic score: {failure['reliability_score']}/100")
-    for category, result in (assessment or {}).items():
-        if isinstance(result,dict) and "score" in result: line(f"{category.replace('_',' ').title()} heuristic score: {result['score']}/100",10)
+    line("Reliability findings (graph structure)")
+    for item in failure["single_points_of_failure"]: line(f"Single point of failure: {item['name']} ({item['type']})",10)
+    for item in failure["choke_points"]: line(f"Choke point: {item['name']} — {item['reason']}",10)
+    for item in failure["cascading_failure_risks"]: line(f"Cascade risk at {item['component']}: {item['impact']}; affected: {', '.join(item['affected'])}",10)
     for r in failure["recommendations"]: line("Recommendation: "+r,10)
     for item in suggestions or []: line(f"Optimization: {item['title']} — {item['reason']} Trade-off: {item['tradeoff']}",10)
     line("Critical components: "+", ".join(failure["critical_components"]))
     if ai_assessment:
         line("AI assessment: "+str(ai_assessment.get("explanation","Not provided")))
-        for key in ("tradeoffs","bottlenecks","scalability"):
+        for key in ("tradeoffs","choke_points","project_specific_risks","mitigations","scalability"):
             for item in ai_assessment.get(key,[]) or []: line(f"AI {key}: {item}",10)
         assumptions=ai_assessment.get("assumptions",[]) or []
     else:

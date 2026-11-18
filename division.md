@@ -11,12 +11,12 @@ Each team member is assigned:
 
 ## Executive Summary Matrix
 
-| Member | Architecture | Scenarios Owned | Platform Subsystem | Primary Backend Files | Primary Frontend Files |
+| Member | Architecture | Scenarios Owned | Platform Subsystem | Primary Backend Files | Primary Frontend Files | Added Intelligence Center Responsibilities |
 |---|---|---|---|---|---|
-| **Member 1** | **Single Server** (SPOF) | `normal_traffic`, `high_traffic` | **Frontend Dashboard & Topology Visualization** | `simulation/single_server.py`, `data/scenarios/normal_traffic.py`, `data/scenarios/high_traffic.py` | `app/page.tsx`, `components/TopologyView.tsx`, `app/layout.tsx`, `app/globals.css` |
-| **Member 2** | **Load Balanced** (Round Robin, failover) | `server_failure` | **FastAPI Backend, API Routes & Data Schemas** | `simulation/load_balanced.py`, `data/scenarios/server_failure.py`, `main.py`, `api/routes.py`, `models/schemas.py`, `data/definitions.py` | `lib/api.ts`, `types/index.ts` |
-| **Member 3** | **Auto-Scaling** (Elasticity, CPU triggers) | `traffic_spike`, `auto_scaling_event` | **SimPy Discrete-Event Core & Real-Time Charts** | `simulation/auto_scaling.py`, `data/scenarios/traffic_spike.py`, `data/scenarios/auto_scaling_event.py`, `simulation/base.py` (BaseEngine), `simulation/factory.py`, `simulation/engine.py` | `components/SimCharts.tsx` |
-| **Member 4** | **Three-Tier with Cache** (Cache hits, DB offload) | `database_slowdown` | **Telemetry, Event Timeline & Comparison Feature** | `simulation/three_tier.py`, `data/scenarios/database_slowdown.py`, `simulation/base.py` (MetricsCollector), `api/routes.py` (`/api/compare`) | `components/MetricsPanel.tsx`, `components/EventTimeline.tsx`, `components/CompareView.tsx` |
+| **Member 1** | **Single Server** (SPOF) | `normal_traffic`, `high_traffic` | **Frontend Dashboard & Topology Visualization** | `simulation/single_server.py`, `data/scenarios/normal_traffic.py`, `data/scenarios/high_traffic.py` | `app/page.tsx`, `components/TopologyView.tsx`, `app/layout.tsx`, `app/globals.css` | Intelligence Center design editor, component configuration, topology editing, save/load and advisor result presentation |
+| **Member 2** | **Load Balanced** (Round Robin, failover) | `server_failure` | **FastAPI Backend, API Routes & Data Schemas** | `simulation/load_balanced.py`, `data/scenarios/server_failure.py`, `main.py`, `api/routes.py`, `models/schemas.py`, `data/definitions.py` | `lib/api.ts`, `types/index.ts` | Intelligence API integration, design catalogue persistence/validation, Gemini configuration and advisor API contract |
+| **Member 3** | **Auto-Scaling** (Elasticity, CPU triggers) | `traffic_spike`, `auto_scaling_event` | **SimPy Discrete-Event Core & Real-Time Charts** | `simulation/auto_scaling.py`, `data/scenarios/traffic_spike.py`, `data/scenarios/auto_scaling_event.py`, `simulation/base.py` (BaseEngine), `simulation/factory.py`, `simulation/engine.py` | `components/SimCharts.tsx` | Graph-driven custom simulation engine, custom simulation input models and simulation dashboard/playback/comparison visualizations |
+| **Member 4** | **Three-Tier with Cache** (Cache hits, DB offload) | `database_slowdown` | **Telemetry, Event Timeline & Comparison Feature** | `simulation/three_tier.py`, `data/scenarios/database_slowdown.py`, `simulation/base.py` (MetricsCollector), `api/routes.py` (`/api/compare`) | `components/MetricsPanel.tsx`, `components/EventTimeline.tsx`, `components/CompareView.tsx` | NetworkX risk analysis, illustrative cost estimator, optimizer suggestions, PDF reports, comparison and AI narrative analysis |
 
 ---
 
@@ -56,6 +56,15 @@ Each team member is assigned:
   - Dynamic edges with active/inactive stroke styling reflecting live connection state and server health.
 - **`frontend/app/layout.tsx` & `frontend/app/globals.css`**:
   - Modern dark-mode styling, typography, and responsive container layout.
+
+#### 4. Added Platform Responsibility: Architecture Intelligence Center UI
+- **`frontend/app/intelligence/page.tsx`**:
+  - Architecture editor for adding/removing supported components, editing names and configuration, and connecting nodes.
+  - Design save/load/delete flow, analysis and optimization controls, PDF report download, and optional Architecture Expert prompt/results.
+  - Loads advisor baseline and mitigated recommendations into the editor for further editing.
+- **`frontend/components/CustomSimulationTopology.tsx`**:
+  - Custom-design topology display used during simulation playback, including component status, utilization, instances, and request traversal counts.
+- Keep the editor interaction and its presentation in the frontend scope; backend validation, persistence, and analysis are owned by the relevant backend members below.
 
 ---
 
@@ -98,6 +107,20 @@ Each team member is assigned:
   - Frontend API client functions (`getArchitectures`, `getScenarios`, `runSimulation`, `compareArchitectures`).
   - Strict TypeScript interface definitions matching backend Pydantic models.
 
+#### 4. Added Platform Responsibility: Intelligence API and Design Lifecycle
+- **`backend/api/intelligence.py`** (design lifecycle and API integration):
+  - Own design data/API contracts and request/response validation for the health check, component catalogue, and design catalogue endpoints (`GET/POST /designs`, `GET/DELETE /designs/{id}`).
+  - Implement local JSON design catalogue operations: list, save, retrieve, and delete designs.
+  - Validate design component identifiers, connections, client/traffic-generator presence, and directed acyclic graph shape before persistence or processing.
+  - Own the advisor endpoint contract and recommendation schema; connect the editor request to the optional Gemini service.
+- **`backend/api/custom_simulation.py`** (route integration):
+  - Coordinate route mounting and request/response integration with Member 3's custom simulation engine.
+- **`backend/services/intelligence.py` (AI advisor integration and configuration)**:
+  - Keep optional Gemini model discovery/generation integration behind backend APIs; credentials remain backend-side.
+  - Maintain Gemini setup guidance in `docs/GEMINI_SETUP.md` and ensure non-AI design workflows remain available without credentials.
+- **`backend/models`**:
+  - Maintain Pydantic design/advisor request and response models; custom simulation run configuration models are owned by Member 3.
+
 ---
 
 ### Member 3: SimPy Engine Architect & Auto-Scaling Architecture
@@ -134,6 +157,21 @@ Each team member is assigned:
   - **Throughput & Active Requests**: Requests completed/sec vs concurrent in-flight requests.
   - **Latency Chart**: Average and maximum response time trends.
   - Synchronized vertical reference cursor indicating the current scrubber time position.
+
+#### 4. Added Platform Responsibility: Custom Design Simulation
+- **Custom simulation scenario set**:
+  - Implement the nine custom-run conditions: normal traffic, high traffic, traffic spike, server failure, database slowdown, auto scaling, network latency, cache failure, and multiple component failures.
+  - Support stable, ramp, spike, and wave traffic patterns plus adjustable duration, rate, failure timing, recovery, repetitions, and seed.
+- **`backend/models/custom_simulation.py`**:
+  - Define validated custom-design, scenario, failure, comparison, repetition, seed, and run-configuration inputs.
+- **`backend/services/custom_simulation.py`**:
+  - Implement the separate graph-driven SimPy runner: request traversal, capacity and queues, cache/CDN hits, routing, failures/recovery, database slowdown, network delay, autoscaling, timeline sampling, metrics, and repeated seeded runs.
+  - Validate graph references and reject cyclic request paths; surface disconnected-component warnings.
+- **`backend/api/custom_simulation.py`** (simulation execution):
+  - Own `GET /scenarios`, `POST /run`, and `POST /compare`, including same-condition custom/predefined comparisons and request-budget validation; coordinate API integration with Member 2.
+- **`frontend/app/intelligence/simulation/page.tsx` and `frontend/components/CustomSimulationTopology.tsx`**:
+  - Build the custom simulation controls, run replay controls, topology playback, metric views, and saved-design comparisons.
+  - Keep numerical metrics sourced from the custom engine; optional AI interpretation is narrative only.
 
 ---
 
@@ -172,6 +210,20 @@ Each team member is assigned:
     - **Bar chart** comparing throughput, response latency, error rate, and dropped requests.
     - **Per-architecture event log** showing failure/recovery/scaling events that occurred on each side.
 
+#### 4. Added Platform Responsibility: Architecture Intelligence Analysis and Reporting
+- **`backend/services/intelligence.py`** (analysis and decision support):
+  - Maintain the illustrative component price catalogue and hourly/daily/monthly cost estimates.
+  - Implement NetworkX structural findings: single points of failure, articulation/choke points, disconnected components, critical dependencies, and cascading risks.
+  - Produce cache, read-replica, and load-balancer optimization suggestions and apply user-accepted suggestions to a separate optimized design.
+  - Generate PDF reports containing the design diagram/details, estimates, structural findings, suggestions, and any supplied AI assessment.
+  - Provide optional narrative explanations for design comparison and custom simulation results without changing simulation metrics.
+- **`backend/api/intelligence.py`** (analysis endpoints):
+  - Own `POST /analyze`, `/optimize`, `/compare`, `/compare/explanation`, and `/report`; coordinate design schemas and persistence with Member 2.
+- **`backend/api/custom_simulation.py`**:
+  - Own `POST /simulation/analyze` narrative analysis integration with Member 3's run result; keep engine metrics separate from AI-generated explanation.
+- **`frontend/app/intelligence/simulation/page.tsx`** (result interpretation):
+  - Coordinate metric summaries and comparison result presentation with Member 3; present cost estimates and optional narrative separately from engine measurements.
+
 ---
 
 ## File Ownership & Code Location Guide
@@ -181,9 +233,12 @@ CloudArchSim/
 ├── backend/
 │   ├── main.py                         ── Member 2 (FastAPI bootstrap, CORS)
 │   ├── api/
-│   │   └── routes.py                   ── Member 2 (CRUD routes, get_scenario_for_arch) & Member 4 (Compare route)
+│   │   ├── routes.py                   ── Member 2 (legacy routes, get_scenario_for_arch) & Member 4 (legacy comparison)
+│   │   ├── intelligence.py             ── Member 2 (design lifecycle/API and advisor integration) & Member 4 (analysis/report endpoint behavior)
+│   │   └── custom_simulation.py        ── Member 3 (custom simulation routes and comparisons), integrated with Member 2 API setup
 │   ├── data/
 │   │   ├── definitions.py              ── Member 2 (Architecture configs, latency profiles, get_scenario_for_arch adapter)
+│   │   ├── designs.json                 ── Member 2 (local saved-design catalogue; generated/ignored runtime data)
 │   │   └── scenarios/
 │   │       ├── __init__.py             ── Member 2 (Package init)
 │   │       ├── normal_traffic.py       ── Member 1 (Steady 100 req/s baseline)
@@ -193,7 +248,11 @@ CloudArchSim/
 │   │       ├── auto_scaling_event.py   ── Member 3 (100→400→100 req/s scaling trigger)
 │   │       └── database_slowdown.py    ── Member 4 (DB latency 20→200ms spike)
 │   ├── models/
-│   │   └── schemas.py                  ── Member 2 (Pydantic models)
+│   │   ├── schemas.py                  ── Member 2 (predefined simulation Pydantic models)
+│   │   └── custom_simulation.py        ── Member 3 (custom design and simulation input models)
+│   ├── services/
+│   │   ├── custom_simulation.py        ── Member 3 (graph-driven SimPy engine)
+│   │   └── intelligence.py             ── Member 2 (Gemini integration) & Member 4 (analysis, estimates, optimization, PDF, narratives)
 │   └── simulation/
 │       ├── base.py                     ── Member 3 (BaseSimulation, Server, LoadBalancer) & Member 4 (MetricsCollector)
 │       ├── factory.py                  ── Member 3 (Simulation factory)
@@ -205,10 +264,13 @@ CloudArchSim/
 └── frontend/
     ├── app/
     │   ├── page.tsx                    ── Member 1 (Main dashboard, playback scrubber)
+    │   ├── intelligence/page.tsx       ── Member 1 (custom design editor, advisor and intelligence workflows)
+    │   ├── intelligence/simulation/page.tsx ── Member 3 (custom simulation UI/playback) & Member 4 (analysis/cost interpretation)
     │   ├── layout.tsx                  ── Member 1 (Root layout)
     │   └── globals.css                 ── Member 1 (Global styles)
     ├── components/
     │   ├── TopologyView.tsx            ── Member 1 (React Flow canvas, custom nodes)
+    │   ├── CustomSimulationTopology.tsx ── Member 1 (custom design topology UI) & Member 3 (simulation playback data)
     │   ├── SimCharts.tsx               ── Member 3 (Recharts time-series performance graphs)
     │   ├── MetricsPanel.tsx            ── Member 4 (Live KPI cards)
     │   ├── EventTimeline.tsx           ── Member 4 (System incident feed)
@@ -218,6 +280,8 @@ CloudArchSim/
     └── types/
         └── index.ts                    ── Member 2 (TypeScript interfaces)
 ```
+
+The Intelligence Center additions extend the existing assignments; they do not replace any original architecture, scenario, or subsystem ownership. Shared files are marked with the members responsible for their distinct parts.
 
 ---
 
