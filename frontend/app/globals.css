@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+  --swiss-white: #fff;
+  --swiss-black: #000;
+  --swiss-muted: #f2f2f2;
+  --swiss-red: #ff3000;
+  --swiss-line: #000;
+  --font-inter: Inter, Arial, Helvetica, sans-serif;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--swiss-white); }
+body {
+  min-height: 100vh;
+  color: var(--swiss-black);
+  background-color: var(--swiss-white);
+  background-image: linear-gradient(#00000008 1px, transparent 1px), linear-gradient(90deg, #00000008 1px, transparent 1px);
+  background-size: 24px 24px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Translate the existing utility-based UI onto the shared Swiss palette. */
+[class*="bg-[#0a0f1e]"], [class*="bg-[#0d1424]"],
+[class*="bg-slate-950"], [class*="bg-slate-900"], [class*="bg-slate-800"],
+[class*="bg-slate-700"], [class*="bg-slate-800/"], [class*="bg-slate-900/"],
+[class*="bg-indigo-900/"], [class*="bg-violet-900/"], [class*="bg-cyan-950"],
+[class*="bg-emerald-950"], [class*="bg-amber-950"], [class*="bg-rose-950"], [class*="bg-orange-900/"] {
+  background-color: var(--swiss-muted) !important;
+  background-image: none !important;
+}
+[class*="bg-gradient-to-"] { background-image: none !important; background-color: var(--swiss-black) !important; }
+[class*="from-"] { --tw-gradient-from: transparent !important; }
+[class*="border-slate-"], [class*="border-indigo-"], [class*="border-violet-"],
+[class*="border-cyan-"], [class*="border-emerald-"], [class*="border-amber-"],
+[class*="border-blue-"], [class*="border-orange-"], [class*="border-teal-"], [class*="border-yellow-"],
+[class*="border-rose-"] { border-color: #000 !important; }
+[class*="text-slate-"], [class*="text-indigo-"], [class*="text-violet-"],
+[class*="text-cyan-"], [class*="text-blue-"], [class*="text-teal-"],
+[class*="text-emerald-"], [class*="text-amber-"], [class*="text-yellow-"], [class*="text-orange-"] { color: #333 !important; }
+[class*="text-red-"], [class*="text-rose-"] { color: var(--swiss-red) !important; }
+[class*="bg-indigo-"], [class*="bg-violet-"], [class*="bg-cyan-"],
+[class*="bg-emerald-"], [class*="bg-orange-"], [class*="bg-teal-"], [class*="bg-blue-"],
+[class*="bg-amber-"], [class*="bg-yellow-"], [class*="bg-rose-"], [class*="bg-red-"] {
+  background-color: var(--swiss-black) !important;
+  color: #fff !important;
+}
+[class*="rounded"] { border-radius: 0 !important; }
+[class*="shadow-"] { box-shadow: none !important; }
+
+h1, h2, h3, h4, th, label { text-transform: uppercase; letter-spacing: .045em; }
+button, a, select, input, textarea { font-family: inherit; }
+button, select, input, textarea { border-radius: 0 !important; }
+button { min-height: 44px; transition: color 150ms linear, background-color 150ms linear, border-color 150ms linear, transform 150ms linear; }
+button:hover:not(:disabled) {
+  border-color: var(--swiss-red) !important;
+  background-color: var(--swiss-red) !important;
+  color: #fff !important;
+}
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--swiss-red);
+  outline-offset: 2px;
+}
+input, textarea, select { color: #000 !important; background-color: #fff !important; border: 2px solid #000 !important; }
+input::placeholder, textarea::placeholder { color: #666; }
+
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: #000 transparent; }
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #000; }
+.react-flow__attribution { display: none !important; }
+.react-flow__minimap { background: #f2f2f2 !important; border: 2px solid #000 !important; border-radius: 0 !important; }
+.react-flow__controls button { background: #fff !important; border-color: #000 !important; color: #000 !important; }
+.react-flow__controls button:hover { background: #f2f2f2 !important; }
+.recharts-default-tooltip { background: #fff !important; border: 2px solid #000 !important; border-radius: 0 !important; color: #000 !important; }
+.recharts-cartesian-grid line { stroke: #d0d0d0 !important; }
+
+.swiss-grid-pattern { background-image: linear-gradient(#00000008 1px, transparent 1px), linear-gradient(90deg, #00000008 1px, transparent 1px); background-size: 24px 24px; }
+.swiss-dots { background-image: radial-gradient(#00000012 1px, transparent 1px); background-size: 16px 16px; }
+.swiss-diagonal { background-image: repeating-linear-gradient(45deg, #00000008 0 1px, transparent 1px 10px); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
