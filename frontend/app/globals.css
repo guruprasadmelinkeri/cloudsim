@@ -31,7 +31,7 @@ body {
   background-color: var(--swiss-muted) !important;
   background-image: none !important;
 }
-[class*="bg-gradient-to-"] { background-image: none !important; background-color: var(--swiss-black) !important; }
+[class*="bg-gradient-to-"] { background-image: none !important; background-color: var(--swiss-muted) !important; }
 [class*="from-"] { --tw-gradient-from: transparent !important; }
 [class*="border-slate-"], [class*="border-indigo-"], [class*="border-violet-"],
 [class*="border-cyan-"], [class*="border-emerald-"], [class*="border-amber-"],
@@ -41,11 +41,12 @@ body {
 [class*="text-cyan-"], [class*="text-blue-"], [class*="text-teal-"],
 [class*="text-emerald-"], [class*="text-amber-"], [class*="text-yellow-"], [class*="text-orange-"] { color: #333 !important; }
 [class*="text-red-"], [class*="text-rose-"] { color: var(--swiss-red) !important; }
+[class*="text-white"] { color: var(--swiss-black) !important; }
 [class*="bg-indigo-"], [class*="bg-violet-"], [class*="bg-cyan-"],
 [class*="bg-emerald-"], [class*="bg-orange-"], [class*="bg-teal-"], [class*="bg-blue-"],
 [class*="bg-amber-"], [class*="bg-yellow-"], [class*="bg-rose-"], [class*="bg-red-"] {
-  background-color: var(--swiss-black) !important;
-  color: #fff !important;
+  background-color: var(--swiss-muted) !important;
+  color: var(--swiss-black) !important;
 }
 [class*="rounded"] { border-radius: 0 !important; }
 [class*="shadow-"] { box-shadow: none !important; }
